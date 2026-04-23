@@ -8,9 +8,13 @@ use parsec_interface::operations::{attest_key, prepare_key_attestation};
 use parsec_interface::requests::{ResponseStatus, Result};
 use parsec_interface::secrecy::zeroize::Zeroizing;
 use std::convert::TryFrom;
-use tss_esapi::constants::response_code::Tss2ResponseCodeKind;
-use tss_esapi::Error;
-use tss_esapi::{abstraction::transient::ObjectWrapper, structures::Auth};
+use tss_esapi::{
+    structures::Auth,
+    abstraction::transient::ObjectWrapper,
+    constants::return_code::TpmFormatOneError,
+    error::TpmResponseCode,
+    Error, ReturnCode,
+};
 
 impl Provider {
     pub(super) fn prepare_key_attestation_internal(
@@ -167,16 +171,16 @@ impl Provider {
 
 fn key_attest_response_status(error: Error) -> ResponseStatus {
     match error {
-        Error::Tss2Error(e) => match e.kind() {
-            Some(Tss2ResponseCodeKind::BadAuth) => {
+        Error::TssError(ReturnCode::Tpm(TpmResponseCode::FormatOne(e))) => match e.error_number() {
+            TpmFormatOneError::BadAuth => {
                 error!("Wrong authentication value for attesting key");
                 ResponseStatus::PsaErrorGenericError
             }
-            Some(Tss2ResponseCodeKind::Value) => {
+            TpmFormatOneError::Value => {
                 error!("Wrong parameter value for key attestation");
                 ResponseStatus::PsaErrorInvalidArgument
             }
-            Some(Tss2ResponseCodeKind::Size) => {
+            TpmFormatOneError::Size => {
                 error!("Wrong parameter size for key attestation");
                 ResponseStatus::PsaErrorInvalidArgument
             }

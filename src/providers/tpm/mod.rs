@@ -28,7 +28,7 @@ use std::io::ErrorKind;
 use std::str::FromStr;
 use std::sync::Mutex;
 use tss_esapi::interface_types::algorithm::HashingAlgorithm;
-use tss_esapi::interface_types::resource_handles::Hierarchy;
+use tss_esapi::interface_types::reserved_handles::Hierarchy;
 use tss_esapi::structures::{SymmetricCipherParameters, SymmetricDefinitionObject};
 use tss_esapi::Tcti;
 use zeroize::Zeroize;

@@ -11,17 +11,20 @@ use picky_asn1::wrapper::IntegerAsn1;
 use picky_asn1_x509::RsaPublicKey;
 use serde::{Deserialize, Serialize};
 use std::convert::{TryFrom, TryInto};
-use tss_esapi::abstraction::transient::{KeyMaterial, KeyParams};
-use tss_esapi::constants::response_code::Tss2ResponseCodeKind;
-use tss_esapi::interface_types::{
-    algorithm::HashingAlgorithm, ecc::EccCurve, key_bits::RsaKeyBits,
+use tss_esapi::{
+    abstraction::transient::{KeyMaterial, KeyParams},
+    structures::{
+        EccScheme, EccSignature, HashScheme, RsaExponent, RsaScheme, RsaSignature, Signature,
+    },
+    interface_types::{
+        algorithm::HashingAlgorithm, ecc::EccCurve, key_bits::RsaKeyBits,
+    },
+    tss2_esys::TPMS_CONTEXT,
+    utils::{PublicKey, TpmsContext},
+    constants::return_code::TpmFormatOneError,
+    error::TpmResponseCode,
+    Error, ReturnCode,
 };
-use tss_esapi::structures::{
-    EccScheme, EccSignature, HashScheme, RsaExponent, RsaScheme, RsaSignature, Signature,
-};
-use tss_esapi::tss2_esys::TPMS_CONTEXT;
-use tss_esapi::utils::{PublicKey, TpmsContext};
-use tss_esapi::Error;
 use zeroize::{Zeroize, Zeroizing};
 const PUBLIC_EXPONENT_BYTES: [u8; 3] = [0x01, 0x00, 0x01];
 
@@ -40,28 +43,28 @@ pub fn to_response_status(error: Error) -> ResponseStatus {
             format_error!("Conversion to PsaErrorCommunicationFailure", e);
             ResponseStatus::PsaErrorCommunicationFailure
         }
-        Error::Tss2Error(e) => {
-            if let Some(kind) = e.kind() {
+        Error::TssError(ReturnCode::Tpm(TpmResponseCode::FormatOne(e))) => {
+            if let kind = e.error_number() {
                 match kind {
-                    Tss2ResponseCodeKind::Success => ResponseStatus::Success,
-                    Tss2ResponseCodeKind::Signature => ResponseStatus::PsaErrorInvalidSignature,
-                    Tss2ResponseCodeKind::ObjectMemory => {
+                    TpmFormatOneError::Success => ResponseStatus::Success,
+                    TpmFormatOneError::Signature => ResponseStatus::PsaErrorInvalidSignature,
+                    TpmFormatOneError::ObjectMemory => {
                         ResponseStatus::PsaErrorInsufficientMemory
                     }
-                    Tss2ResponseCodeKind::SessionMemory => {
+                    TpmFormatOneError::SessionMemory => {
                         ResponseStatus::PsaErrorInsufficientMemory
                     }
-                    Tss2ResponseCodeKind::Memory => ResponseStatus::PsaErrorInsufficientMemory,
-                    Tss2ResponseCodeKind::Retry => ResponseStatus::PsaErrorHardwareFailure,
-                    s @ Tss2ResponseCodeKind::Asymmetric
-                    | s @ Tss2ResponseCodeKind::Hash
-                    | s @ Tss2ResponseCodeKind::KeySize
-                    | s @ Tss2ResponseCodeKind::Mgf
-                    | s @ Tss2ResponseCodeKind::Mode
-                    | s @ Tss2ResponseCodeKind::Kdf
-                    | s @ Tss2ResponseCodeKind::Scheme
-                    | s @ Tss2ResponseCodeKind::Symmetric
-                    | s @ Tss2ResponseCodeKind::Curve => {
+                    TpmFormatOneError::Memory => ResponseStatus::PsaErrorInsufficientMemory,
+                    TpmFormatOneError::Retry => ResponseStatus::PsaErrorHardwareFailure,
+                    s @ TpmFormatOneError::Asymmetric
+                    | s @ TpmFormatOneError::Hash
+                    | s @ TpmFormatOneError::KeySize
+                    | s @ TpmFormatOneError::Mgf
+                    | s @ TpmFormatOneError::Mode
+                    | s @ TpmFormatOneError::Kdf
+                    | s @ TpmFormatOneError::Scheme
+                    | s @ TpmFormatOneError::Symmetric
+                    | s @ TpmFormatOneError::Curve => {
                         if crate::utils::GlobalConfig::log_error_details() {
                             error!("Not supported value ({:?})", s);
                         }
